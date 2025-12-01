@@ -1,6 +1,9 @@
 # NQX v1.0 Hybrid Format  
 **Reference Specification and Implementation**
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17772957.svg)](https://doi.org/10.5281/zenodo.17772957)
+
+
 NQX is a compact, lossless, block-based container format for FASTQ sequencing data.  
 It combines a lightweight JSON header with a structured binary payload to provide:
 
@@ -163,6 +166,9 @@ These serve as official test vectors for verifying implementations.
 - This repository defines **NQX v1.0 hybrid**.  
 - Future versions (NQX v2+) may introduce new block layouts and codec stacks.  
 - Backward compatibility is guaranteed through the metadata version fields in the JSON header.
+- NQX file format version: 1.0 (SPEC_NQX_v1.0.md)
+- GitHub/Zenodo software release: v1.0.1 (DOI: 10.5281/zenodo.17772957)
+
 
 ---
 
@@ -181,9 +187,13 @@ MIT License
 
 ---
 
-## Citation (when DOI assigned)
+## Citation
 
-```
-NQX v1.0 Hybrid Format Specification.  
-DOI: <to be added after Zenodo release>
-```
+If you use the NQX format or the reference implementation in your work, please cite:
+
+İlteriş Eren AMİL.  
+**NQX v1.0 Hybrid File Format Specification.**  
+Zenodo. 2025.  
+https://doi.org/10.5281/zenodo.17772957
+
+---

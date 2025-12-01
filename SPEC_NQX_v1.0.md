@@ -424,3 +424,16 @@ Copyright (c) 2025
 ```
 
 See `LICENSE` file for full terms.
+
+---
+
+## 17. Citation
+
+If you use the NQX v1.0 format or its reference implementation, please cite:
+
+İlteriş Eren AMİL.  
+**NQX v1.0 Hybrid File Format Specification.**  
+Zenodo. 2025.  
+https://doi.org/10.5281/zenodo.17772957
+
+---
