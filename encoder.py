@@ -1,8 +1,3 @@
-"""
-NQX v1.0 hybrid encoder
-Tek FASTQ -> tek NQX (hybrid): [JSON header] + [binary NQX payload]
-Binary payload: block-based, 4 stream (ID, PLUS, SEQ, QUAL) + zstd sıkıştırma.
-"""
 
 from __future__ import annotations
 
@@ -11,17 +6,8 @@ import struct
 from pathlib import Path
 from typing import Iterator, Tuple, BinaryIO
 
-import zstandard as zstd  # pip install zstandard
+import zstandard as zstd  
 
-
-# =========================
-# Hibrit pre-header + JSON
-# =========================
-
-# Pre-header: "<4sII"
-# 4s : PRE_MAGIC = b"NQJ1"
-# I  : json_length (UTF-8 JSON header byte sayısı)
-# I  : flags (şimdilik 0, gelecekte kullanım için ayrılmış)
 PRE_HEADER_STRUCT = struct.Struct("<4sII")
 PRE_MAGIC = b"NQJ1"
 
@@ -49,8 +35,7 @@ PLATFORM_UNKNOWN = 0
 PLATFORM_ILLUMINA = 1
 
 QUAL_PHRED33 = 0
-QUAL_PHRED64 = 1  # geleceğe yönelik, şimdilik kullanılmıyor
-
+QUAL_PHRED64 = 1  
 # Block header: "<IIIIIIIIIIBBBB"
 # I : block_id
 # I : block_read_count
@@ -77,14 +62,10 @@ CODEC_ID_ZSTD = 1
 # =========================
 
 def iter_fastq_reads(f: BinaryIO) -> Iterator[Tuple[str, str, str, str]]:
-    """
-    FASTQ dosyasını 4 satırlık bloklar halinde okuyup (id, seq, plus, qual) döner.
-    Satır sonu karakterleri (\n, \r\n) kırpılır.
-    """
     while True:
         id_line = f.readline()
         if not id_line:
-            return  # EOF
+            return  
 
         seq_line = f.readline()
         plus_line = f.readline()
@@ -135,7 +116,7 @@ def encode_fastq_to_nqx(
     if block_size <= 0:
         raise ValueError("block_size pozitif bir tamsayı olmalıdır.")
 
-    # JSON header içeriği (metadata + block şeması)
+   
     header_dict = {
         "format": "NQX",
         "variant": "hybrid",
@@ -154,7 +135,7 @@ def encode_fastq_to_nqx(
     json_bytes = json.dumps(header_dict, separators=(",", ":")).encode("utf-8")
     json_length = len(json_bytes)
 
-    # Zstd compressor (tek context, dört stream için de kullanılabilir)
+   
     zstd_level = 3
     zctx = zstd.ZstdCompressor(level=zstd_level)
 
@@ -163,12 +144,12 @@ def encode_fastq_to_nqx(
     block_id = 0
 
     with fastq_path.open("rb") as fin, nqx_path.open("wb") as fout:
-        # 1) PRE-HEADER + JSON HEADER yaz
+        
         pre_header = PRE_HEADER_STRUCT.pack(PRE_MAGIC, json_length, 0)
         fout.write(pre_header)
         fout.write(json_bytes)
 
-        # 2) GLOBAL HEADER için yer ayır (patch'lenecek)
+       
         global_header_pos = fout.tell()
         dummy_global_header = GLOBAL_HEADER_STRUCT.pack(
             MAGIC,
@@ -176,13 +157,13 @@ def encode_fastq_to_nqx(
             VERSION_MINOR,
             platform,
             quality_encoding,
-            0,  # total_reads (şimdilik 0, sonra patch)
-            0,  # total_bases (şimdilik 0, sonra patch)
+            0, 
+            0, 
             block_size,
         )
         fout.write(dummy_global_header)
 
-        # 3) FASTQ'dan blok blok okuyup yaz
+        
         reader = iter_fastq_reads(fin)
 
         while True:
@@ -191,7 +172,7 @@ def encode_fastq_to_nqx(
             seqs: list[str] = []
             quals: list[str] = []
 
-            # Blok doldur
+            
             for _ in range(block_size):
                 try:
                     id_str, seq_str, plus_str, qual_str = next(reader)
@@ -207,12 +188,12 @@ def encode_fastq_to_nqx(
                 total_bases += len(seq_str)
 
             if not ids:
-                # FASTQ bitti
+                
                 break
 
             block_read_count = len(ids)
 
-            # 4) Dört stream'i newline ile birleştir (decoder da newline bazlı geri bölecek)
+            
             id_bytes = ("\n".join(ids) + "\n").encode("utf-8")
             plus_bytes = ("\n".join(pluses) + "\n").encode("utf-8")
             seq_bytes = ("\n".join(seqs) + "\n").encode("utf-8")
@@ -223,7 +204,7 @@ def encode_fastq_to_nqx(
             uncomp_seq_bytes = len(seq_bytes)
             uncomp_qual_bytes = len(qual_bytes)
 
-            # 5) Zstd ile sıkıştır
+            
             comp_id = zctx.compress(id_bytes)
             comp_plus = zctx.compress(plus_bytes)
             comp_seq = zctx.compress(seq_bytes)
@@ -234,7 +215,7 @@ def encode_fastq_to_nqx(
             comp_seq_bytes = len(comp_seq)
             comp_qual_bytes = len(comp_qual)
 
-            # 6) Block header yaz
+            
             block_header = BLOCK_HEADER_STRUCT.pack(
                 block_id,
                 block_read_count,
@@ -253,7 +234,7 @@ def encode_fastq_to_nqx(
             )
             fout.write(block_header)
 
-            # 7) Dört stream'i sırayla yaz
+            
             fout.write(comp_id)
             fout.write(comp_plus)
             fout.write(comp_seq)
@@ -261,8 +242,7 @@ def encode_fastq_to_nqx(
 
             block_id += 1
 
-        # 8) Global header'ı gerçek total_reads / total_bases ile patch et
-        #    (PRE_HEADER + JSON_HEADER sabit, GLOBAL_HEADER aynı konumda)
+       
         end_pos = fout.tell()
         fout.seek(global_header_pos)
         final_global_header = GLOBAL_HEADER_STRUCT.pack(
