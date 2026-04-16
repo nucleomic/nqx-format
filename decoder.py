@@ -1,16 +1,3 @@
-"""
-NQX v1.0 hybrid decoder
-Tek NQX (hybrid) -> tek FASTQ
-
-Dosya yapısı:
-[ PRE_HEADER (12B) ]
-[ JSON_HEADER (json_length B, UTF-8) ]
-[ GLOBAL_HEADER (binary) ]
-[ BLOK(lar): BLOCK_HEADER + 4 adet zstd sıkıştırılmış stream ]
-
-Bu dosya, encoder.py'nin NQX v1.0 hibrit sürümü ile üretilmiş .nqx dosyalarını
-FASTQ'a geri çevirmek için referans decoder olarak tasarlanmıştır.
-"""
 
 from __future__ import annotations
 
@@ -27,8 +14,8 @@ import zstandard as zstd
 
 # Pre-header: "<4sII"
 # 4s : PRE_MAGIC = b"NQJ1"
-# I  : json_length (UTF-8 JSON header byte sayısı)
-# I  : flags (şimdilik 0, gelecekte kullanım için ayrılmış)
+# I  : json_length 
+# I  : flags 
 PRE_HEADER_STRUCT = struct.Struct("<4sII")
 PRE_MAGIC = b"NQJ1"
 
@@ -54,7 +41,7 @@ PLATFORM_UNKNOWN = 0
 PLATFORM_ILLUMINA = 1
 
 QUAL_PHRED33 = 0
-QUAL_PHRED64 = 1  # geleceğe yönelik, şimdilik kullanılmıyor
+QUAL_PHRED64 = 1  
 
 # Block header: "<IIIIIIIIIIBBBB"
 # I : block_id
@@ -77,9 +64,6 @@ CODEC_ID_RAW = 0
 CODEC_ID_ZSTD = 1
 
 
-# =========================
-# Yardımcı fonksiyonlar
-# =========================
 
 def read_exact(f: BinaryIO, n: int) -> bytes:
     """Dosyadan tam n byte okur, eksikse hata fırlatır."""
@@ -106,7 +90,7 @@ def read_pre_and_json_header(f: BinaryIO) -> dict:
     json_bytes = read_exact(f, json_length)
     header_dict = json.loads(json_bytes.decode("utf-8"))
 
-    # Basit doğrulamalar
+   
     if header_dict.get("format") != "NQX":
         raise ValueError("JSON header 'format' alanı NQX değil.")
 
@@ -166,36 +150,23 @@ def decompress_stream(codec_id: int, comp_data: bytes) -> bytes:
         raise ValueError(f"Desteklenmeyen codec_id: {codec_id}")
 
 
-# =========================
-# Ana decoder fonksiyonu
-# =========================
+
 
 def decode_nqx_to_fastq(nqx_path: str, fastq_path: str) -> None:
-    """
-    Hibrit NQX v1.0 dosyasını FASTQ formatına decode eder.
-
-    Girdi:
-      nqx_path  : encoder.py hibrit v1.0 tarafından üretilmiş .nqx dosyası
-    Çıktı:
-      fastq_path: FASTQ dosyası (round-trip için orijinal FASTQ ile birebir aynı olmalı)
-    """
+   
     with open(nqx_path, "rb") as fin, open(fastq_path, "wb") as fout:
-        # 1) PRE_HEADER + JSON_HEADER
+       
         json_header = read_pre_and_json_header(fin)
 
-        # İstersen burada json_header içeriğini loglayabilir,
-        # block_scheme'e göre davranış ayarlayabilirsin.
-        # Şimdilik sadece doğrulama amaçlı okuyoruz.
+       
 
-        # 2) GLOBAL_HEADER (binary NQX payload başlangıcı)
+      
         global_header = read_global_header(fin)
 
-        # 3) Blokları sırayla oku
+       
         while True:
-            # Bir block header okumaya çalış
             block_header_bytes = fin.read(BLOCK_HEADER_STRUCT.size)
             if not block_header_bytes:
-                # EOF (blok kalmadı)
                 break
 
             if len(block_header_bytes) != BLOCK_HEADER_STRUCT.size:
@@ -218,19 +189,19 @@ def decode_nqx_to_fastq(nqx_path: str, fastq_path: str) -> None:
                 codec_id_qual,
             ) = BLOCK_HEADER_STRUCT.unpack(block_header_bytes)
 
-            # Sıkıştırılmış stream'leri oku
+           
             comp_id = read_exact(fin, comp_id_bytes)
             comp_plus = read_exact(fin, comp_plus_bytes)
             comp_seq = read_exact(fin, comp_seq_bytes)
             comp_qual = read_exact(fin, comp_qual_bytes)
 
-            # Codec'e göre decompress et
+           
             id_bytes = decompress_stream(codec_id_id, comp_id)
             plus_bytes = decompress_stream(codec_id_plus, comp_plus)
             seq_bytes = decompress_stream(codec_id_seq, comp_seq)
             qual_bytes = decompress_stream(codec_id_qual, comp_qual)
 
-            # Uncompressed uzunlukları kontrol et
+           
             if len(id_bytes) != uncomp_id_bytes:
                 raise ValueError(
                     f"ID stream uncompressed size uyuşmuyor (beklenen={uncomp_id_bytes}, gerçek={len(id_bytes)})"
@@ -248,7 +219,7 @@ def decode_nqx_to_fastq(nqx_path: str, fastq_path: str) -> None:
                     f"QUAL stream uncompressed size uyuşmuyor (beklenen={uncomp_qual_bytes}, gerçek={len(qual_bytes)})"
                 )
 
-            # Newline bazlı read list'lerine ayrıştır
+            
             id_lines = id_bytes.decode("utf-8").splitlines()
             plus_lines = plus_bytes.decode("utf-8").splitlines()
             seq_lines = seq_bytes.decode("utf-8").splitlines()
@@ -268,22 +239,19 @@ def decode_nqx_to_fastq(nqx_path: str, fastq_path: str) -> None:
                     f"block_read_count={block_read_count}"
                 )
 
-            # FASTQ'ya yaz
+            
             for i in range(block_read_count):
-                # Orijinal encoder, PLUS satırını da saklıyordu,
-                # bu yüzden round-trip'te aynen geri yazıyoruz.
+               
                 fout.write((id_lines[i] + "\n").encode("utf-8"))
                 fout.write((seq_lines[i] + "\n").encode("utf-8"))
                 fout.write((plus_lines[i] + "\n").encode("utf-8"))
                 fout.write((qual_lines[i] + "\n").encode("utf-8"))
 
 
-# =========================
-# CLI
-# =========================
+
 
 if __name__ == "__main__":
-    # python decoder.py test_R1_2.nqx decoded_R1.fastq
+    
     import sys
 
     if len(sys.argv) != 3:
